@@ -1,0 +1,234 @@
+@startuml
+!define RECTANGLE class
+
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+skinparam nodeStyle rectangle
+
+skinparam artifact {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    FontColor #0D47A1
+}
+
+skinparam component {
+    BackgroundColor #E8F5E9
+    BorderColor #2E7D32
+    FontColor #1B5E20
+}
+
+skinparam node {
+    BackgroundColor #FFF3E0
+    BorderColor #E65100
+    FontColor #BF360C
+}
+
+skinparam rectangle {
+    BackgroundColor #F3E5F5
+    BorderColor #6A1B9A
+    FontColor #4A148C
+}
+
+skinparam arrow {
+    Color #424242
+    FontColor #424242
+}
+
+title Diagramme de Déploiement UML 2.x
+Gouvernance IAM Dynamique — Banque BFC
+(v1.0.0 — 2026-06-26)
+
+' ============================================================
+' NŒUD 1 : Forge Souveraine (GitOps)
+' ============================================================
+node "Forge Souveraine" as Forge <<device>> {
+
+    node "Policy Repository" as PolicyRepo <<node>> {
+
+        artifact "roles_definitions.yaml" as RolesYAML <<artifact>> {
+            note right
+              **Stéréotype :** <<artifact>>
+              **Type :** Fichier de configuration versionné
+              **Contenu :** 4 rôles métier + attributs ABAC
+              **Source de vérité unique (SSoT)**
+            end note
+        }
+
+        artifact "sod_constraints.yaml" as SODYAML <<artifact>> {
+            note right
+              **Stéréotype :** <<artifact>>
+              **Type :** Fichier de configuration versionné
+              **Contenu :** 3 règles SoD critiques
+            end note
+        }
+
+        artifact "Commit History" as GitLog <<artifact>> {
+            note right
+              **Stéréotype :** <<artifact>>
+              **Type :** Journal d'audit immuable
+              **Contenu :** Qui / Quoi / Quand / Pourquoi
+            end note
+        }
+    }
+
+    node "CI/CD Pipeline" as Pipeline <<node>> {
+
+        component "SoD Verification" as SODCheck <<component>> {
+            note right
+              **Stéréotype :** <<component>>
+              **Fonction :** Vérifie que le commit ne crée
+              aucune violation de séparation des tâches
+              **Sortie :** Build OK / Build Failed
+            end note
+        }
+
+        component "Auto-Documentation
+Generator" as DocGen <<component>> {
+            note right
+              **Stéréotype :** <<component>>
+              **Fonction :** Génère sod_matrix.html, .md, .txt
+              **Sortie :** Rapports de conformité à jour
+            end note
+        }
+
+        component "Drift Detection
+Engine" as Drift <<component>> {
+            note right
+              **Stéréotype :** <<component>>
+              **Fonction :** Compare état réel vs. état défini
+              **Sortie :** Alertes si écart détecté
+            end note
+        }
+    }
+}
+
+' ============================================================
+' NŒUD 2 : Moteur de Décision
+' ============================================================
+node "Moteur de Décision" as DecisionEngine <<device>> {
+
+    component "OPA / Policy Agent" as OPA <<component>> {
+        note right
+          **Stéréotype :** <<component>>
+          **Fonction :** Évalue les requêtes d'accès
+          selon les politiques YAML + attributs ABAC
+          **Entrée :** Requête utilisateur + contexte
+          **Sortie :** Autoriser / Refuser
+        end note
+    }
+
+    component "Attribute Provider" as AttrProvider <<component>> {
+        note right
+          **Stéréotype :** <<component>>
+          **Fonction :** Fournit les attributs dynamiques
+          (localisation, heure, statut, MFA, PAM)
+          **Source :** LDAP / Entra ID / SIEM
+        end note
+    }
+}
+
+' ============================================================
+' NŒUD 3 : Infrastructure d'Exécution
+' ============================================================
+node "Infrastructure d'Exécution" as Infra <<device>> {
+
+    node "Annuaire d'Identités" as IAM <<node>> {
+        artifact "Active Directory / LDAP" as AD <<artifact>> {
+            note right
+              **Stéréotype :** <<artifact>>
+              **Type :** Annuaire central des identités
+              **Fonction :** Authentification + groupes
+            end note
+        }
+    }
+
+    node "Systèmes Métier" as Business <<node>> {
+        artifact "Base de Données Clients" as DB <<artifact>> {
+            note right
+              **Stéréotype :** <<artifact>>
+              **Type :** Base de données opérationnelle
+              **Fonction :** Stockage des comptes, virements
+            end note
+        }
+
+        artifact "Application Bancaire" as App <<artifact>> {
+            note right
+              **Stéréotype :** <<artifact>>
+              **Type :** Application métier
+              **Fonction :** Interface utilisateur (GCC, VFM)
+            end note
+        }
+    }
+
+    node "Cloud Privé Souverain" as Cloud <<node>> {
+        artifact "Conteneurs / VMs" as VMs <<artifact>> {
+            note right
+              **Stéréotype :** <<artifact>>
+              **Type :** Infrastructure virtualisée interne
+              **Fonction :** Hébergement des services IAM
+            end note
+        }
+    }
+}
+
+' ============================================================
+' FLUX DE DÉPENDANCES (déploiement)
+' ============================================================
+' Les flèches représentent des dépendances de déploiement :
+' "X dépend de Y" = Y doit être déployé avant X
+' ============================================================
+
+RolesYAML ..> SODCheck : <<deploy>>
+[source de vérité]
+SODYAML ..> SODCheck : <<deploy>>
+[source de vérité]
+
+SODCheck ..> DocGen : <<trigger>>
+[si build OK]
+SODCheck ..> Drift : <<trigger>>
+[si build OK]
+
+DocGen ..> GitLog : <<write>>
+[versionne les rapports]
+
+OPA ..> RolesYAML : <<read>>
+[charge les politiques]
+OPA ..> SODYAML : <<read>>
+[charge les contraintes]
+OPA ..> AttrProvider : <<query>>
+[résout les attributs]
+
+AttrProvider ..> AD : <<query>>
+[statut, localisation]
+
+AD ..> DB : <<enforce>>
+[applique les droits]
+AD ..> App : <<enforce>>
+[applique les droits]
+AD ..> VMs : <<enforce>>
+[applique les droits]
+
+Drift ..> AD : <<compare>>
+[état réel vs. défini]
+Drift ..> DB : <<compare>>
+[état réel vs. défini]
+
+' ============================================================
+' LÉGENDE UML 2.x
+' ============================================================
+legend right
+    **Légende UML 2.x**
+
+    🟦 <<artifact>> : Produit tangible (fichier, document)
+    🟩 <<component>> : Brique logicielle modulaire
+    🟧 <<node>> : Élément d'exécution logique
+    ⬜ <<device>> : Équipement physique ou virtuel
+
+    **Règles de lecture :**
+    1. Chaque <<artifact>> appartient à un <<node>>
+    2. Les <<component>> dépendent des <<artifact>>
+    3. Les flèches = dépendances de déploiement
+    4. Le sens de lecture : gauche → droite = définition → exécution
+end legend
+
+@enduml

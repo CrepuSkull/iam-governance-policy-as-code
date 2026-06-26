@@ -1,0 +1,230 @@
+# ============================================================
+# roles_definitions.yaml
+# Fichier de définition des rôles métier — Banque fictive "BFC"
+# Version : 1.0.0
+# Date : 2026-06-26
+# ============================================================
+# Ce fichier est la SOURCE DE VÉRITÉ (SSoT) de la gouvernance
+# des accès. Toute modification passe par un commit Git validé.
+# ============================================================
+
+# ----------------------------------------------------------
+# RÔLE 1 : Gestionnaire de Comptes Clients (GCC)
+# ----------------------------------------------------------
+# Métier : Ouvre, modifie et consulte les comptes clients.
+# Niveau de sensibilité : Standard (données clients)
+# ----------------------------------------------------------
+role_gcc:
+  id: "ROLE_GCC_001"
+  name: "Gestionnaire de Comptes Clients"
+  description: |
+    Accès aux opérations courantes sur les comptes clients :
+    consultation, modification de données personnelles, ouverture
+    de compte. Aucun accès aux flux financiers (virements, prélèvements).
+
+  # RBAC : permissions statiques (le "quoi")
+  permissions:
+    - action: "compte:consulter"
+      resource: "compte_client"
+      scope: "own_branch"          # seulement sa propre agence
+    - action: "compte:modifier"
+      resource: "compte_client"
+      scope: "own_branch"
+    - action: "compte:ouvrir"
+      resource: "compte_client"
+      scope: "own_branch"
+
+  # ABAC : attributs contextuels dynamiques (le "quand/où/comment")
+  # Ces attributs sont évalués À CHAQUE ACCÈS, pas une seule fois.
+  abac_constraints:
+    - attribute: "user.location"
+      operator: "in"
+      values: ["agence_physique", "vpn_interne"]
+      # Explication : le GCC ne peut pas consulter un compte
+      # depuis un café avec son téléphone. Seulement depuis
+      # l'agence ou le VPN bancaire.
+    - attribute: "request.time"
+      operator: "in_range"
+      values: ["08:00", "19:00"]
+      # Explication : pas d'accès en dehors des heures d'ouverture.
+      # Réduit le risque d'accès frauduleux nocturne.
+    - attribute: "user.status"
+      operator: "eq"
+      value: "actif"
+      # Explication : un collaborateur en congés ou suspendu
+      # voit ses accès automatiquement révoqués.
+
+  # Séparation des tâches : rôles incompatibles (voir sod_constraints.yaml)
+  sod_incompatible_with:
+    - "ROLE_VFM_001"   # Virement : un GCC ne peut pas aussi valider des virements
+    - "ROLE_AUD_001"   # Audit : un GCC ne peut pas s'auto-auditer
+
+# ----------------------------------------------------------
+# RÔLE 2 : Validateur de Flux Monétaires (VFM)
+# ----------------------------------------------------------
+# Métier : Valide les virements et prélèvements de montants
+# supérieurs à un seuil. C'est le "deuxième œil" (Four-Eyes).
+# Niveau de sensibilité : Élevé (flux financiers)
+# ----------------------------------------------------------
+role_vfm:
+  id: "ROLE_VFM_001"
+  name: "Validateur de Flux Monétaires"
+  description: |
+    Valide les opérations financières (virements, prélèvements)
+    dépassant un seuil défini. Ne peut pas créer de virement,
+    seulement valider ceux créés par un autre rôle.
+
+  permissions:
+    - action: "virement:valider"
+      resource: "operation_financiere"
+      scope: "own_branch"
+    - action: "virement:rejeter"
+      resource: "operation_financiere"
+      scope: "own_branch"
+    - action: "virement:consulter"
+      resource: "operation_financiere"
+      scope: "own_branch"
+
+  abac_constraints:
+    - attribute: "user.location"
+      operator: "eq"
+      value: "agence_physique"
+      # Explication : la validation de virement ne se fait
+      # QUE depuis une agence physique. Pas de télétravail
+      # pour cette action critique (conformité interne BFC).
+    - attribute: "request.time"
+      operator: "in_range"
+      values: ["09:00", "17:00"]
+      # Explication : validation uniquement en heures de bureau.
+      # Réduit le risque de fraude en dehors des heures de supervision.
+    - attribute: "operation.montant"
+      operator: "gte"
+      value: 10000
+      # Explication : ce rôle ne s'active que pour les opérations
+      # supérieures à 10 000€. En dessous, pas besoin de validation.
+    - attribute: "user.status"
+      operator: "eq"
+      value: "actif"
+
+  sod_incompatible_with:
+    - "ROLE_GCC_001"   # SoD : ne peut pas créer ET valider un virement
+    - "ROLE_AUD_001"   # SoD : ne peut pas s'auto-auditer
+
+# ----------------------------------------------------------
+# RÔLE 3 : Auditeur Interne Conformité (AIC)
+# ----------------------------------------------------------
+# Métier : Consulte les logs et les matrices d'accès pour les
+# audits réglementaires. Aucun droit de modification.
+# Niveau de sensibilité : Élevé (données d'audit)
+# ----------------------------------------------------------
+role_aic:
+  id: "ROLE_AUD_001"
+  name: "Auditeur Interne Conformité"
+  description: |
+    Accès en lecture seule aux logs d'accès, aux matrices de
+    rôles, et aux rapports de conformité. Aucun droit de
+    modification — c'est le principe du "moindre privilège".
+
+  permissions:
+    - action: "audit:consulter"
+      resource: "logs_acces"
+      scope: "all_branches"        # l'auditeur voit tout
+    - action: "audit:consulter"
+      resource: "matrice_roles"
+      scope: "all_branches"
+    - action: "audit:generer_rapport"
+      resource: "rapport_conformite"
+      scope: "all_branches"
+
+  abac_constraints:
+    - attribute: "user.location"
+      operator: "eq"
+      value: "bureau_audit"
+      # Explication : l'auditeur ne consulte les logs que depuis
+      # son bureau dédié (salle sécurisée, pas de télétravail).
+    - attribute: "request.time"
+      operator: "in_range"
+      values: ["08:00", "18:00"]
+    - attribute: "user.status"
+      operator: "eq"
+      value: "actif"
+    - attribute: "session.mfa"
+      operator: "eq"
+      value: true
+      # Explication : l'auditeur DOIT avoir une authentification
+      # forte (MFA) active pour consulter les logs. C'est une
+      # exigence de la plupart des référentiels bancaires.
+
+  sod_incompatible_with:
+    - "ROLE_GCC_001"   # SoD : ne peut pas être client et juge
+    - "ROLE_VFM_001"   # SoD : ne peut pas auditer ses propres virements
+    - "ROLE_ADM_001"   # SoD : ne peut pas auditer et administrer
+
+# ----------------------------------------------------------
+# RÔLE 4 : Administrateur IAM (ADM)
+# ----------------------------------------------------------
+# Métier : Gère les rôles, les attributs et les politiques.
+# C'est le "super-user" de la gouvernance.
+# Niveau de sensibilité : CRITIQUE (toute la gouvernance)
+# ----------------------------------------------------------
+role_adm:
+  id: "ROLE_ADM_001"
+  name: "Administrateur IAM"
+  description: |
+    Crée, modifie et supprime les rôles et les attributs ABAC.
+    Peut consulter toutes les ressources. C'est le rôle le plus
+    sensible — il faut le protéger par le "Four-Eyes principle".
+
+  permissions:
+    - action: "iam:administrer"
+      resource: "roles_definitions"
+      scope: "all_branches"
+    - action: "iam:administrer"
+      resource: "abac_attributes"
+      scope: "all_branches"
+    - action: "iam:administrer"
+      resource: "sod_constraints"
+      scope: "all_branches"
+    - action: "audit:consulter"
+      resource: "logs_acces"
+      scope: "all_branches"
+
+  abac_constraints:
+    - attribute: "user.location"
+      operator: "eq"
+      value: "datacenter_interne"
+      # Explication : l'admin IAM ne travaille que depuis le
+      # datacenter interne. Pas de télétravail, pas de VPN.
+      # C'est le dernier rempart de la gouvernance.
+    - attribute: "request.time"
+      operator: "in_range"
+      values: ["08:00", "18:00"]
+    - attribute: "user.status"
+      operator: "eq"
+      value: "actif"
+    - attribute: "session.mfa"
+      operator: "eq"
+      value: true
+    - attribute: "session.pam"
+      operator: "eq"
+      value: true
+      # Explication : PAM = Privileged Access Management.
+      # L'admin IAM doit passer par une session "privilégiée"
+      # enregistrée et supervisée (écran partagé, enregistrement
+      # vidéo). C'est une exigence DORA Art. 9(4)(c) (gestion des accès privilégiés).
+
+  sod_incompatible_with:
+    - "ROLE_AUD_001"   # SoD : ne peut pas s'auto-administrer ET s'auto-auditer
+    - "ROLE_GCC_001"   # SoD : ne peut pas être opérationnel et administrateur
+    - "ROLE_VFM_001"   # SoD : ne peut pas valider des virements ET gérer les rôles
+
+# ----------------------------------------------------------
+# NOTE SUR L'ABAC
+# ----------------------------------------------------------
+# Les attributs ABAC ci-dessus sont évalués DYNAMIQUEMENT à
+# chaque requête. Si un collaborateur passe de "actif" à
+# "suspendu" dans l'annuaire (LDAP/Entra ID), ses accès sont
+# automatiquement révoqués SANS modification du fichier YAML.
+# C'est la différence fondamentale avec un RBAC pur : le rôle
+# reste le même, mais le contexte change.
+# ----------------------------------------------------------

@@ -1,0 +1,130 @@
+# ============================================================
+# sod_constraints.yaml
+# Contraintes de Séparation des Tâches (SoD)
+# Banque fictive "BFC"
+# Version : 1.0.0
+# Date : 2026-06-26
+# ============================================================
+# Ce fichier liste les INCOMPATIBILITÉS entre rôles.
+# Si un utilisateur possède deux rôles incompatibles,
+# le système doit bloquer l'attribution du second rôle
+# et générer une alerte.
+# ============================================================
+
+# ----------------------------------------------------------
+# RÈGLE SoD 1 : Création vs Validation des flux financiers
+# ----------------------------------------------------------
+# Principe : personne ne peut créer un virement ET le valider.
+# C'est le "Four-Eyes principle" (principe du double contrôle).
+# Référence réglementaire : DORA Art. 17 (gestion des risques
+# opérationnels), CSSF Circ. 12/552 (séparation des fonctions).
+# ----------------------------------------------------------
+sod_rule_001:
+  id: "SOD_001"
+  name: "Séparation Création / Validation des flux financiers"
+  description: |
+    Un utilisateur ne peut pas cumuler un rôle permettant de
+    créer une opération financière (virement, prélèvement) et
+    un rôle permettant de la valider. Cette règle prévient la
+    fraude interne par un opérateur isolé.
+
+  severity: "CRITICAL"
+  # CRITICAL = bloquant. Le système refuse l'attribution.
+  # HIGH = alerte, mais l'attribution est possible avec
+  # justification écrite et validation du RSSI.
+
+  roles_incompatible:
+    - "ROLE_GCC_001"   # Gestionnaire de Comptes Clients
+      # Peut créer des virements (via ses permissions sur compte)
+    - "ROLE_VFM_001"   # Validateur de Flux Monétaires
+      # Peut valider les virements
+
+  justification_allowed: false
+  # false = aucune dérogation possible. C'est une règle absolue.
+  # true = une dérogation est possible avec un motif écrit
+  #         et une validation hiérarchique.
+
+  business_rationale: |
+    Un même individu créant et validant un virement de
+    500 000€ constitue un risque de fraude inacceptable.
+    Cette règle est non négociable pour tout établissement
+    soumis à la directive DORA.
+
+# ----------------------------------------------------------
+# RÈGLE SoD 2 : Opérationnel vs Audit
+# ----------------------------------------------------------
+# Principe : un opérationnel ne peut pas s'auto-auditer.
+# C'est le principe de l'indépendance de l'audit interne.
+# Référence : ISO 27001:2022 A.5.3 (séparation des tâches), DORA Art. 6 §4 (indépendance de la fonction de contrôle interne), CSSF Circ. 12/552 point 45.
+# ----------------------------------------------------------
+sod_rule_002:
+  id: "SOD_002"
+  name: "Séparation Opérationnel / Audit"
+  description: |
+    Un utilisateur ayant un rôle opérationnel (création,
+    modification, validation) ne peut pas cumuler un rôle
+    d'audit. L'auditeur doit être indépendant des opérations
+    qu'il contrôle.
+
+  severity: "CRITICAL"
+
+  roles_incompatible:
+    - "ROLE_GCC_001"   # Opérationnel : comptes clients
+    - "ROLE_VFM_001"   # Opérationnel : validation virements
+    - "ROLE_ADM_001"   # Opérationnel : admin IAM (très sensible)
+    - "ROLE_AUD_001"   # Audit : consultation logs
+
+  # NOTE : ici, c'est une règle "groupe vs groupe".
+  # Tout rôle opérationnel est incompatible avec ROLE_AUD_001.
+  # Le script Python détecte cela via le champ sod_incompatible_with
+  # dans roles_definitions.yaml.
+
+  justification_allowed: false
+
+  business_rationale: |
+    Un auditeur qui est aussi opérationnel pourrait masquer
+    ses propres traces dans les logs. L'indépendance de
+    l'audit est un pilier de la gouvernance des risques.
+
+# ----------------------------------------------------------
+# RÈGLE SoD 3 : Administration IAM vs Opérationnel
+# ----------------------------------------------------------
+# Principe : l'administrateur IAM ne doit pas avoir accès aux
+# données clients ou aux flux financiers. Il gère les rôles,
+# il ne les utilise pas à des fins opérationnelles.
+# Référence : Principe du moindre privilège (PoLP),
+# DORA Art. 9 (protection et prévention) + Art. 5 (gouvernance),
+# CSSF Circ. 12/552 point 45.
+# ----------------------------------------------------------
+sod_rule_003:
+  id: "SOD_003"
+  name: "Séparation Administration IAM / Opérationnel"
+  description: |
+    L'administrateur IAM (ROLE_ADM_001) ne peut pas cumuler
+    un rôle opérationnel (GCC, VFM). Il ne doit pas pouvoir
+    s'attribuer un rôle opérationnel, ni utiliser ses propres
+    droits d'administration pour accéder aux données clients.
+
+  severity: "CRITICAL"
+
+  roles_incompatible:
+    - "ROLE_ADM_001"   # Administrateur IAM
+    - "ROLE_GCC_001"   # Opérationnel : comptes clients
+    - "ROLE_VFM_001"   # Opérationnel : validation virements
+
+  justification_allowed: false
+
+  business_rationale: |
+    Un administrateur IAM ayant accès aux comptes clients
+    pourrait modifier les soldes ou supprimer des traces.
+    C'est le scénario de fraude le plus critique. La
+    séparation est absolue.
+
+# ----------------------------------------------------------
+# NOTE SUR LA DÉTECTION DES VIOLATIONS
+# ----------------------------------------------------------
+# Ce fichier est lu par le script generate_matrix.py qui :
+# 1. Construit la matrice complète rôles × rôles
+# 2. Identifie les cellules rouges (incompatibles)
+# 3. Génère un rapport lisible par un auditeur
+# ----------------------------------------------------------

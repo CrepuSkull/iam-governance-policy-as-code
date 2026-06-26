@@ -59,8 +59,6 @@ Dans la plupart des banques, la matrice des accès est un fichier Excel mis à j
 
 ## 🚀 Comment l'utiliser (3 étapes)
 
-## 🚀 Comment l'utiliser (3 étapes)
-
 ### Étape 1 : Préparer l'environnement
 
 Tu as besoin de **Python 3.8+** et de la bibliothèque `PyYAML`.

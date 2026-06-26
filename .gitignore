@@ -1,0 +1,11 @@
+# Rapports générés automatiquement — ne pas versionner
+reports/
+*.html
+*.txt
+real_state_simulation.json
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc

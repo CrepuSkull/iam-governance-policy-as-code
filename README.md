@@ -217,7 +217,7 @@ Ce projet est la **Vague A** (squelette fonctionnel). La **Vague B** prévoit :
 ## 📝 Comment citer ce projet
 
 ```
-[Ton nom], "Gouvernance IAM Dynamique — Squelette Policy-as-Code pour banque",
+Arnaud Montcho, "Gouvernance IAM Dynamique — Squelette Policy-as-Code pour banque",
 Projet BFC, v1.0.0, 2026.
 ```
 

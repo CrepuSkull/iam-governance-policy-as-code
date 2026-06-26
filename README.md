@@ -2,7 +2,7 @@
 
 **Version :** 1.0.0  
 **Date :** 2026-06-26  
-**Auteur :** [Ton nom] — Consultant IAM / Gouvernance  
+**Auteur :** Arnaud Montcho — Consultant IAM / Gouvernance  
 **Licence :** MIT (libre d'utilisation et de modification)  
 
 ---

@@ -1,0 +1,226 @@
+@startuml architecture_deployment
+' ============================================================
+' Diagramme de Déploiement UML 2.x — Gouvernance IAM Dynamique
+' Banque fictive "BFC"
+' Version : 1.1.0 — Notation UML 2.x stricte
+' Date : 2026-06-26
+' ============================================================
+' Conformité UML 2.x :
+' - <<device>>    : équipement physique ou serveur virtuel
+' - <<node>>      : environnement d'exécution logiciel
+' - <<artifact>>  : fichier, document ou composant déployable
+' - <<manifest>>  : relation entre artifact et component
+' - Les artifacts ne sont pas imbriqués dans d'autres artifacts
+' - Les stéréotypes de relations sont limités aux stéréotypes
+'   standardisés UML 2.x (<<manifest>>, <<deploy>>)
+' ============================================================
+
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+skinparam device {
+    BackgroundColor #FFF3E0
+    BorderColor #E65100
+    BorderThickness 2
+    FontColor #BF360C
+    FontStyle Bold
+}
+
+skinparam node {
+    BackgroundColor #E8F5E9
+    BorderColor #2E7D32
+    BorderThickness 1
+    FontColor #1B5E20
+}
+
+skinparam artifact {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    FontColor #0D47A1
+}
+
+skinparam component {
+    BackgroundColor #F3E5F5
+    BorderColor #6A1B9A
+    FontColor #4A148C
+}
+
+skinparam arrow {
+    Color #424242
+    FontColor #555555
+    FontSize 9
+}
+
+skinparam note {
+    BackgroundColor #FFFDE7
+    BorderColor #F9A825
+    FontSize 9
+}
+
+title
+  <b>Diagramme de Déploiement UML 2.x</b>
+  Gouvernance IAM Dynamique — Banque BFC (v1.1.0)
+end title
+
+' ============================================================
+' PÉRIMÈTRE : Environnement Souverain Interne
+' ============================================================
+
+rectangle "Environnement Souverain Interne (Banque BFC)" {
+
+  ' ----------------------------------------------------------
+  ' DEVICE 1 : Serveur de Forge (Forgejo self-managed)
+  ' ----------------------------------------------------------
+  node "Serveur Forge\n(Forgejo Self-Managed)" as ForgeNode <<device>> {
+
+    node "Référentiel de Politiques\n(Policy Repository)" as PolicyRepo <<node>> {
+      artifact "roles_definitions.yaml" as RolesYAML
+      artifact "sod_constraints.yaml" as SODYAML
+      artifact "Commit History\n(Audit Trail Git)" as GitLog
+    }
+  }
+
+  ' ----------------------------------------------------------
+  ' DEVICE 2 : Serveur CI/CD
+  ' ----------------------------------------------------------
+  node "Serveur CI/CD\n(Pipeline GitOps)" as CICDNode <<device>> {
+
+    node "Pipeline d'Automatisation" as PipelineEnv <<node>> {
+      component "SoD Verification" as SODCheck
+      component "Auto-Documentation\nGenerator" as DocGen
+      component "Drift Detection\nEngine" as Drift
+    }
+
+    artifact "sod_matrix.html" as MatrixHTML
+    artifact "drift_report.html" as DriftReport
+  }
+
+  ' ----------------------------------------------------------
+  ' DEVICE 3 : Serveur de Décision (OPA)
+  ' ----------------------------------------------------------
+  node "Serveur de Décision\n(Policy Engine)" as OPANode <<device>> {
+
+    node "Moteur de Politiques\n(Open Policy Agent)" as OPAEnv <<node>> {
+      component "Policy Evaluator\n(OPA / Rego)" as OPA
+      component "Attribute Provider\n(ABAC Resolver)" as AttrProvider
+    }
+  }
+
+  ' ----------------------------------------------------------
+  ' DEVICE 4 : Infrastructure d'Exécution
+  ' ----------------------------------------------------------
+  node "Infrastructure d'Exécution\n(Systèmes Cibles)" as InfraNode <<device>> {
+
+    node "Annuaire Central" as IAMEnv <<node>> {
+      artifact "Active Directory / LDAP" as AD
+    }
+
+    node "Systèmes Métier" as BizEnv <<node>> {
+      artifact "Base de Données\nOpérationnelle" as DB
+      artifact "Application Bancaire\n(GCC / VFM)" as App
+    }
+
+    node "Cloud Privé Souverain" as CloudEnv <<node>> {
+      artifact "Conteneurs / VMs\n(Services IAM)" as VMs
+    }
+  }
+
+}
+
+' ============================================================
+' RELATIONS UML 2.x
+' ============================================================
+' Notation :
+' ..>  = dépendance (usage)
+' -->  = association (flux de données)
+' Les libellés décrivent le type de flux, pas un stéréotype
+' inventé.
+' ============================================================
+
+' --- Forge → Pipeline : déclenchement sur commit validé ---
+RolesYAML ..> SODCheck : alimente
+SODYAML ..> SODCheck : alimente
+
+' --- Pipeline : enchaînement interne ---
+SODCheck ..> DocGen : déclenche si\nbuild OK
+SODCheck ..> Drift : déclenche si\nbuild OK
+
+' --- Pipeline → Artifacts générés ---
+DocGen ..> MatrixHTML : génère
+Drift ..> DriftReport : génère
+
+' --- Pipeline → Git (versionnage des rapports) ---
+DocGen ..> GitLog : versionne
+
+' --- OPA → Forge : lecture des politiques ---
+OPA ..> RolesYAML : lit les politiques
+OPA ..> SODYAML : lit les contraintes
+
+' --- OPA → Attribute Provider ---
+OPA ..> AttrProvider : résout\nles attributs
+
+' --- Attribute Provider → Annuaire ---
+AttrProvider ..> AD : interroge\n(statut, MFA, localisation)
+
+' --- OPA → Systèmes cibles : enforcement ---
+OPA ..> AD : applique les droits
+OPA ..> DB : applique les droits
+OPA ..> App : applique les droits
+OPA ..> VMs : applique les droits
+
+' --- Drift Detection → Systèmes cibles : comparaison ---
+Drift ..> AD : compare\nétat réel vs. défini
+Drift ..> DB : compare\nétat réel vs. défini
+
+' ============================================================
+' NOTES EXPLICATIVES
+' ============================================================
+
+note bottom of RolesYAML
+  <b>Source de Vérité Unique (SSoT)</b>
+  4 rôles métier (GCC, VFM, AIC, ADM)
+  Attributs ABAC dynamiques inclus
+  Tout changement = commit signé + PR
+end note
+
+note bottom of SODCheck
+  <b>Garde-fou automatisé</b>
+  Vérifie chaque commit :
+  aucune violation SoD ne peut
+  passer en production
+end note
+
+note bottom of OPA
+  <b>Décision dynamique</b>
+  Évalue chaque requête d'accès
+  en temps réel selon les politiques
+  YAML + contexte utilisateur (ABAC)
+end note
+
+note bottom of GitLog
+  <b>Audit Trail immuable</b>
+  Qui / Quoi / Quand / Pourquoi
+  Preuve opposable pour auditeurs
+  CSSF / DORA / NIS2
+end note
+
+' ============================================================
+' LÉGENDE
+' ============================================================
+legend right
+  <b>Stéréotypes UML 2.x utilisés</b>
+  ──────────────────────────────
+  <<device>>    Serveur physique ou virtuel
+  <<node>>      Environnement d'exécution logiciel
+  <<artifact>>  Fichier ou document déployable
+  <<component>> Brique logicielle modulaire
+  ──────────────────────────────
+  <b>Relations</b>
+  ..>  Dépendance (usage, lecture, alimentation)
+  <b>Périmètre</b>
+  Tout le système est hébergé en interne.
+  Aucune donnée ne transite par un cloud public.
+end legend
+
+@enduml

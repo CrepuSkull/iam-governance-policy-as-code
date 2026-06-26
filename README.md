@@ -23,13 +23,17 @@ Dans la plupart des banques, la matrice des accès est un fichier Excel mis à j
 
 ```
 📁 iam-governance-policy-as-code/
-├── roles_definitions.yaml    ← Définition des 4 rôles métier + attributs ABAC
-├── sod_constraints.yaml        ← Règles de séparation des tâches (SoD)
-├── generate_matrix.py        ← Script qui génère la matrice de conformité
-├── sod_matrix.html           ← Rapport visuel (ouvrir dans un navigateur)
-├── sod_matrix.md             ← Rapport texte (intégrable dans Word/PDF)
-├── sod_report.txt            ← Résumé exécutif pour le RSSI
-└── README.md                 ← Ce fichier (guide complet)
+├── README.md
+├── fiche_reglementaire.md
+├── policies/
+│   ├── roles_definitions.yaml
+│   └── sod_constraints.yaml
+├── scripts/
+│   ├── generate_matrix.py
+│   └── drift_detector.py
+├── diagrams/
+│   └── architecture_deployment.puml
+└── reports/          ← dans .gitignore
 ```
 
 ---

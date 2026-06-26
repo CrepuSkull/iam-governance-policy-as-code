@@ -49,6 +49,16 @@ Dans la plupart des banques, la matrice des accès est un fichier Excel mis à j
 
 ---
 
+## 🏗️ Architecture de la solution
+
+![Architecture de déploiement](diagrams/architecture_deployment.png)
+
+> **Lecture du schéma :** de gauche à droite — la Forge souveraine (source de vérité) alimente le Pipeline CI/CD (automatisation), qui pousse les politiques validées vers le Moteur de Décision (OPA), qui enforce les droits sur les Systèmes Cibles (AD, BDD, App).
+
+---
+
+## 🚀 Comment l'utiliser (3 étapes)
+
 ## 🚀 Comment l'utiliser (3 étapes)
 
 ### Étape 1 : Préparer l'environnement

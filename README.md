@@ -205,13 +205,9 @@ Ce projet est conçu pour être **auto-hébergé** (Forgejo, GitLab interne). Il
 
 ## 🔗 Prochaines étapes
 
-Ce projet est la **Vague A** (squelette fonctionnel). La **Vague B** prévoit :
-
-1. **Diagramme UML 2.x** correct (diagramme de déploiement avec nodes, artifacts, stéréotypes)
-2. **Fiche réglementaire** ancrant chaque bénéfice dans DORA, NIS2, CSSF Circ. 12/552
-3. **Module de drift detection** comparant l'état réel des systèmes avec les YAML
-4. **Connecteur** vers Active Directory / LDAP pour synchroniser les politiques
-
+1. **Connecteurs legacy** — Synchronisation vers Active Directory / LDAP via API
+2. **Pipeline CI/CD complet** — GitHub Actions ou GitLab CI pour automatiser les tests SoD à chaque commit
+3. **Drift detection temps réel** — Comparaison continue état réel vs. état défini via API Graph
 ---
 
 ## 📝 Comment citer ce projet
